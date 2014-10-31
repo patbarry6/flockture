@@ -1574,7 +1574,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
   int ind, line, loc, pop;
   int allele;
   double *ProbsVector;          /*[MAXPOPS] */
-  double sumlogs, sum;
+  double sumlogs; /*, sum; ECA commented out to avoid a compile warning. */  
   double runningtotal;
   double max=0.0, prob;
   int pickedpop;
@@ -1611,19 +1611,21 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
         ProbsVector[pop] = sumlogs + log (runningtotal);
         if (pop==0 || ProbsVector[pop] > max) {
           max = ProbsVector[pop];
+          pickedpop = pop;  /* ECA sets pickedpop to the one with highest prob here */
         }
       }
 
+      /*  ECA commented this block out because we want to just assign it to the pop with highest prob.
       sum = 0.0;
       for (pop=0; pop < MAXPOPS; pop++) {
         sum += (ProbsVector[pop] = exp(ProbsVector[pop]-max));
       }
 
+      pickedpop = PickAnOption (MAXPOPS, sum, ProbsVector);
+      */
       for (pop = 0; pop < MAXPOPS; pop++) {
         Q[QPos (ind, pop)] = 0.0;
       }
-
-      pickedpop = PickAnOption (MAXPOPS, sum, ProbsVector);
       Q[QPos (ind, pickedpop)] = 1.0;
 
     }
