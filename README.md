@@ -24,4 +24,13 @@ and his collaborators and is available here:
 
 http://pritchardlab.stanford.edu/structure.html
 
+## Running stuff
 
+Right now on 47e5f644, to run _structure_ I do this:
+```sh
+# from within src
+make
+
+# then from within data
+../src/structure -m testdata_mainparams.txt
+```
