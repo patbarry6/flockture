@@ -107,7 +107,7 @@ MISCELLANEOUS
 #define COMPUTEPROB 1     // (B) Estimate the probability of the Data under 
                              the model.  This is used when choosing the 
                              best number of subpopulations.
-#define ADMBURNIN  500    // (int) [only relevant for linkage model]: 
+#define ADMBURNIN  -1    // (int) [only relevant for linkage model]: 
                              Initial period of burnin with admixture model (see Readme)
 #define ALPHAPROPSD 0.025 // (d) SD of proposal for updating alpha
 #define STARTATPOPINFO 0  // Use given populations as the initial condition 

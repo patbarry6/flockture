@@ -25,6 +25,11 @@
 #include "datain.h"
 #include "output.h"
 
+/* ECA: here are some global variables (quick and dirty) to use in "flockture" */
+int g_Flock_Print_Qs = 0;
+int gFlockRep = 0;
+int gFlockIter = 0;
+
 void InitializeZ (int *Geno, struct IND *Individual, int *Z);
 void UpdateQAdmixture (double *Q, int *Z, double *Alpha, struct IND *Individual);
 
@@ -1574,7 +1579,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
   int ind, line, loc, pop;
   int allele;
   double *ProbsVector;          /*[MAXPOPS] */
-  double sumlogs; /*, sum; ECA commented out to avoid a compile warning. */  
+  double sumlogs, sum, log_p_sum = 0.0; 
   double runningtotal;
   double max=0.0, prob;
   int pickedpop;
@@ -1615,21 +1620,54 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
         }
       }
 
-      /*  ECA commented this block out because we want to just assign it to the pop with highest prob.
+      
+      /* ECA leaves this in, because we want to compute the probs of belonging to each
+      of the clusters so that we can print it out. Also, we will compute the sum of the 
+      log probs, so that we can print that out for each configuration. */
       sum = 0.0;
       for (pop=0; pop < MAXPOPS; pop++) {
+        log_p_sum += ProbsVector[pickedpop];  /* ECA: this accumulates over indivs the log_prob of
+                                              the genotype given the cluster each indiv gets assigned to */
         sum += (ProbsVector[pop] = exp(ProbsVector[pop]-max));
+        
       }
-
+      
+      /*  ECA commented this line out because we want to just assign it to the pop with highest prob.
+      And we do that by setting pickedpop up above
       pickedpop = PickAnOption (MAXPOPS, sum, ProbsVector);
       */
+      
+      
       for (pop = 0; pop < MAXPOPS; pop++) {
         Q[QPos (ind, pop)] = 0.0;
       }
       Q[QPos (ind, pickedpop)] = 1.0;
+      
+      if(g_Flock_Print_Qs > 0) {  /* ECA added this to print out the configuration and the Qs */
+        printf ("FLOCKTURE_INDIV: %d    %3d ", gFlockRep + 1, ind + 1);
+        if (LABEL)
+          printf ("%s  ", Individual[ind].Label);
+        printf("%d   ", pickedpop + 1);
+        for (pop = 0; pop < MAXPOPS; pop++)
+          printf("  %.6f ", ProbsVector[pop]/sum);
+        printf("\n");
+        
+        /* and we also print out the clusters of individuals using their indexes (sorted within clusters)
+        so that we can sort these in R and have a definitive way of characterizing different partitions
+        so we can look for "plateaus" */
+        for (pop = 0; pop < MAXPOPS; pop++) {
+          printf ("FLOCKTURE_CLUSTER_STRING:  %d    %d  >", gFlockRep + 1, pop + 1);
+          for (ind = 0; ind < NUMINDS; ind++) if(Q[QPos (ind, pop)] > 0.99) printf("%d-", ind + 1);
+          printf("\n");
+        }
+      }
 
     }
   }
+  
+  /* ECA: at the end of all that we can print out the log-prob of all the genotypes given
+  the clusters they are assigned to */
+  printf("FLOCK_LOG_PROB: %d  %d  %f\n", gFlockRep + 1, gFlockIter + 1,  log_p_sum);
   
   free (ProbsVector);
 }
@@ -3265,6 +3303,16 @@ int main (int argc, char *argv[])
   /*=====Main MCMC loop=======================================*/
 
   for (rep = 0; rep < (NUMREPS + BURNIN); rep++) {
+    
+    /* flockture...Let BURNIN be the number of iterations to do for each 
+    rep of the FLOCK algorithm */
+    printf("REPREPREP: rep = %d\n", rep);
+    if((rep + 1) % BURNIN == 0 && rep > 0) {
+      g_Flock_Print_Qs = 1;
+    }
+    else {
+      g_Flock_Print_Qs = 0;
+    }
 
     UpdateP (P,LogP, Epsilon, Fst, NumAlleles, Geno, Z, lambda, Individual);
 
@@ -3274,7 +3322,6 @@ int main (int argc, char *argv[])
     } else {
       UpdateQ (Geno, PreGeno, Q, P, Z, Alpha, rep, Individual, UsePopProbs, Recessive, LocPrior);
     }
-
     if (LOCPRIOR && UPDATELOCPRIOR) {
       UpdateLocPrior(Q, LocPrior, Alpha, Individual);
     }
@@ -3317,6 +3364,20 @@ int main (int argc, char *argv[])
       UpdateFst (Epsilon, Fst, LogP, NumAlleles);
     }
 
+    /* here, after updating Q, we can reinitialize, etc. if necessary 
+    We do this after all the other variable updates in a standard loop to ensure
+    that we really are initializing back to a state that is comparable to re-running
+    the program from the beginning. */
+    gFlockIter++;
+    if((rep + 1) % BURNIN == 0 && rep > 0) {
+      gFlockIter = 0;
+      gFlockRep++;
+      /*re-initialize variables and arrays */
+      Initialization (Geno, PreGeno, Individual, Translation, NumAlleles, Z, Z1, Epsilon, SumEpsilon,
+                  Fst, PSum, Q, QSum, SiteBySiteSum, FstSum, AncestDist, UsePopProbs, Alpha,
+                  sumAlpha, sumR, varR, &sumlikes, &sumsqlikes, &savefreq, R, lambda,
+                  sumlambda,Phase,Recessive, LocPrior, sumLocPrior, LocPriorLen, sumIndLikes, indLikesNorm);
+    }
     /*====book-keeping stuff======================*/
     if (rep + 1 > BURNIN) {
       DataCollection (Geno, PreGeno, Q, QSum, Z, Z1, SiteBySiteSum, P, PSum,
