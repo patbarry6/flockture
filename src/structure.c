@@ -1420,14 +1420,21 @@ void UpdateP (double *P, double *LogP, double *Epsilon, double *Fst,
     /*count number of each allele from each pop */
     GetNumFromPop (NumAFromPop, Geno, Z, loc, NumAlleles[loc], Individual);
     for (pop = 0; pop < MAXPOPS; pop++) {
+      double absent_factor = 0.01; /* the small bit to add to allele freq for absent alleles */
+      double big_num = 1000000;  /* scaling to make the dirichlet look like a fixed value */
+      int tot_alles = 0;  /* record total number of gene copies at a locus in a pop */
+      for (allele = 0; allele < NumAlleles[loc]; allele++) tot_alles += NumAFromPop[NumAFromPopPos (pop, allele)];
+			
+			
       for (allele = 0; allele < NumAlleles[loc]; allele++) {
         if (FREQSCORR) {
           Parameters[allele] = Epsilon[EpsPos (loc, allele)]
               *(1.0- Fst[pop])/Fst[pop]
               + NumAFromPop[NumAFromPopPos (pop, allele)];
         } else {
-          Parameters[allele] = lambda[pop]
-              + NumAFromPop[NumAFromPopPos (pop, allele)];
+          int the_num = NumAFromPop[NumAFromPopPos (pop, allele)];
+          Parameters[allele] = (the_num == 0) * (big_num * absent_factor * tot_alles) + the_num * big_num;
+          /* printf("allele = %d  par = %f\n", allele, Parameters[allele]); UNCOMMENT TO VERIFY VALUES ARE BEING CHANGLED */
         }
       }
       /*return a value of P simulated from the posterior Di(Parameters) */
