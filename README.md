@@ -24,13 +24,25 @@ and his collaborators and is available here:
 
 http://pritchardlab.stanford.edu/structure.html
 
+It is posted here with permission.  
+
+We repeat, don't use this as a source for structure's code.
+
 ## Running stuff
 
-Right now on 47e5f644, to run _structure_ I do this:
-```sh
-# from within src
-make
+Here is a little primer on how to run it and get some results
+from it.
 
-# then from within data
-../src/structure -m testdata_mainparams.txt
+1.  First make flockture
+```sh
+# from within src in the shell
+make
 ```
+
+```r
+# then open RStudio and do this:
+source("R/flockture.R")  # source some functions
+```
+Then execute the R commands in the file `fun_devel_stuff.R` to get a 
+picture of how to use the package and run flockture.  
+

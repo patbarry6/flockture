@@ -1412,6 +1412,7 @@ void UpdateP (double *P, double *LogP, double *Epsilon, double *Fst,
   int loc, pop, allele;
   double *Parameters;           /*[MAXALLS] **Parameters of posterior on P */
   int *NumAFromPop;             /*[MAXPOPS][MAXALLS] **number of each allele from each pop */
+  int tot_alles, num_zeroes;
 
   Parameters = calloc (MAXALLELES, sizeof (double));
   NumAFromPop = calloc (MAXPOPS * MAXALLELES, sizeof (int));
@@ -1425,44 +1426,20 @@ void UpdateP (double *P, double *LogP, double *Epsilon, double *Fst,
     /*count number of each allele from each pop */
     GetNumFromPop (NumAFromPop, Geno, Z, loc, NumAlleles[loc], Individual);
     for (pop = 0; pop < MAXPOPS; pop++) {
-      double absent_factor = 0.01; /* the small bit to add to allele freq for absent alleles */
-      double big_num = 1000000;  /* scaling to make the dirichlet look like a fixed value */
-      int tot_alles = 0;  /* record total number of gene copies at a locus in a pop */
-      for (allele = 0; allele < NumAlleles[loc]; allele++) tot_alles += NumAFromPop[NumAFromPopPos (pop, allele)];
-			
-			
+      /* count total number of gene copies in the pop at this locus */
+      tot_alles = 0;
+      num_zeroes = 0;
       for (allele = 0; allele < NumAlleles[loc]; allele++) {
-        if (FREQSCORR) {
-          Parameters[allele] = Epsilon[EpsPos (loc, allele)]
-              *(1.0- Fst[pop])/Fst[pop]
-              + NumAFromPop[NumAFromPopPos (pop, allele)];
-        } else {
-          int the_num = NumAFromPop[NumAFromPopPos (pop, allele)];
-          Parameters[allele] = (the_num == 0) * (big_num * absent_factor * tot_alles) + the_num * big_num;
-          /* printf("allele = %d  par = %f\n", allele, Parameters[allele]); UNCOMMENT TO VERIFY VALUES ARE BEING CHANGLED */
-        }
+      	tot_alles += NumAFromPop[NumAFromPopPos (pop, allele)];
+      	num_zeroes += NumAFromPop[NumAFromPopPos (pop, allele)] == 0;
       }
-      /*return a value of P simulated from the posterior Di(Parameters) */
-      LogRDirichlet (Parameters, NumAlleles[loc], P + PPos (loc, pop, 0),LogP +PPos(loc,pop,0));
-
-      /*need to worry about underflow in UpdateEpsilon due to
-        allele frequencies being set to zero---hence previously used the
-        following hack, however now pass LogP instead
-
-        for (allele=0;allele<NumAlleles[loc];allele++) if
-        (P[PPos(loc,pop,allele)]<1E-20) {
-        P[PPos(loc,pop,allele)]=1E-20;
-
-        for (pop=0; pop<MAXPOPS; pop++)
-        {
-        printf(" loc =%d pop= %d fst=%f ",loc,pop,Fst[pop]);
-        for (allele=0;allele<NumAlleles[loc];allele++)
-        printf (" Epsilon= %.5E P= %.5E Parameters=  %.5E Num= %d",
-        Epsilon[EpsPos(loc,allele)],P[PPos(loc,pop,allele)],
-        Parameters[allele],NumAFromPop[NumAFromPopPos (pop, allele)]);
-        printf("\n");
-        }
-        } */
+      
+      /* Now make them frequencies, adding one observed allele to every pop at which the allele was not observed
+      and put the results in the arrays where they are needed. */
+			for (allele = 0; allele < NumAlleles[loc]; allele++) {
+				P[PPos(loc, pop, allele)] = (NumAFromPop[NumAFromPopPos (pop, allele)] + (NumAFromPop[NumAFromPopPos (pop, allele)] == 0))/ (double)(tot_alles + num_zeroes); 
+				LogP[PPos(loc, pop, allele)] = log(P[PPos(loc, pop, allele)]);
+			}
     }
   }
 
@@ -1594,7 +1571,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
   ProbsVector = calloc (MAXPOPS, sizeof (double));
 
   for (ind = 0; ind < NUMINDS; ind++) {
-    if (!((USEPOPINFO) && (Individual[ind].PopFlag))) {
+    if ((!((USEPOPINFO) && (Individual[ind].PopFlag)))) {  
       /* ie don't use individuals for whom prior pop info is used */
       for (pop = 0; pop < MAXPOPS; pop++) {      /*make a vector of log probs for each pop */
         sumlogs = 0;
@@ -1658,19 +1635,21 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
         for (pop = 0; pop < MAXPOPS; pop++)
           printf("  %.6f ", ProbsVector[pop]/sum);
         printf("\n");
-        
-        /* and we also print out the clusters of individuals using their indexes (sorted within clusters)
-        so that we can sort these in R and have a definitive way of characterizing different partitions
-        so we can look for "plateaus" */
-        for (pop = 0; pop < MAXPOPS; pop++) {
-          printf ("FLOCKTURE_CLUSTER_STRING:  %d    %d  >", gFlockRep + 1, pop + 1);
-          for (ind = 0; ind < NUMINDS; ind++) if(Q[QPos (ind, pop)] > 0.99) printf("%d-", ind + 1);
-          printf("\n");
-        }
-      }
-
+      } 
     }
-  }
+  }  /* closes loop over ind */
+  
+  
+	/* at the end we also print out the clusters of individuals using their indexes (sorted within clusters)
+	so that we can use these in R and have a definitive way of characterizing different partitions
+	so we can look for "plateaus" */
+	if(g_Flock_Print_Qs > 0) {  /* this makes it only print out after the last iteration per rep */
+		for (pop = 0; pop < MAXPOPS; pop++) {
+			printf ("FLOCKTURE_CLUSTER_STRING:  %d   %d    %d  >", gFlockRep + 1, gFlockIter + 1, pop + 1);
+			for (ind = 0; ind < NUMINDS; ind++) if(Q[QPos (ind, pop)] > 0.99) printf("%d-", ind + 1);
+			printf("\n");
+		}
+	}
   
   /* ECA: at the end of all that we can print out the log-prob of all the genotypes given
   the clusters they are assigned to */

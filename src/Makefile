@@ -21,7 +21,7 @@ target: structure
 #debug: target
 
 structure: structure.o params.o datain.o output.o ran.o mymath.o
-	$(CC) -o structure structure.o params.o datain.o output.o ran.o mymath.o $(OPT) $(LIBS)
+	$(CC) -o flockture structure.o params.o datain.o output.o ran.o mymath.o $(OPT) $(LIBS)
 
 #STRAT: STRAT.o params.o datain.o ran.o mymath.o
 #	$(CC) -o STRAT STRAT.o params.o datain.o ran.o mymath.o $(OPT) $(LIBS)
