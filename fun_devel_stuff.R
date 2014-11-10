@@ -32,7 +32,8 @@ d2_outs_p <- plateau_summarize(d2_outs)
 # 100 reps, and color them according to plateau length
 xx <- d2_outs_p$log_probs[d2_outs_p$log_probs$plat.len > 1, ]
 ggplot(xx, aes(x = iter, y = log.prob, group = rep, color = factor(plat.len))) + 
-  geom_line()
+  geom_line() +
+  scale_color_discrete(name="Plateau Length")
 
 
 # here is a vector of the different plateau lengths in sorted order:

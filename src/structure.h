@@ -5,7 +5,7 @@
 #define UNASSIGNED -9		/*missing Data are placed in this population. Should be <0 */
 #define STRLEN     200		/* max length of string used to store data file name */
 #define GENELEN 15              /* max length of gene name */
-#define LABELLEN   12		/* max length of string used to store individ label */
+#define LABELLEN   50		/* max length of string used to store individ label */
 #define VERBOSE    0		/* (B) Print run-time details to screen */
 #define ALLELLEN   10		/* integer data in data file are read in as strings 
 				   of this length */
