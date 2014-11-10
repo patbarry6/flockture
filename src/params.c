@@ -42,6 +42,10 @@ int Whitespace(char next);
 void InputFileNames(int argc, char *argv[], char filename[], char flag[50]);
 void CommandLineValues(int argc, char *argv[]);
 
+/* ECA: some Flockture globals needed outside stucture.c */
+char gFLOCKTURE_START_FILE[301];
+int gUSE_FLOCKTURE_START_CONFIG;
+
 
 /*=======MAIN FUNCTION FOR THIS PART OF THE PROGRAM============*/
 void GetParams(int strat, int argc, char *argv[])
@@ -99,6 +103,10 @@ void CommandLineValues(int argc, char *argv[])
     {
       if (strcmp(argv[i],"-i")==0) sprintf (DATAFILE,"%s",argv[i+1]); 
       else if (strcmp(argv[i],"-o")==0) sprintf (OUTFILE,"%s",argv[i+1]); 
+      else if (strcmp(argv[i],"-f")==0) {
+      	sprintf (gFLOCKTURE_START_FILE,"%s",argv[i+1]); 
+      	gUSE_FLOCKTURE_START_CONFIG = 1;
+      }
       else if (strcmp(argv[i],"-K")==0) 
 	{sprintf (value,"%s",argv[i+1]); MAXPOPS = CommandLineInts(value,"MAXPOPS");}
       else if (strcmp(argv[i],"-L")==0)  

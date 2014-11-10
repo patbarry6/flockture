@@ -9,9 +9,13 @@ run_flockture_bin <- function(data,
                   iter = 50,
                   reps = 100,
                   K = 2,
+                  start_config = integer(0),
                   mptemp = "./inputs/mainparams_template",
                   eptemp = "./inputs/extraparams_template"
                   ) {
+  
+  # set a flag to default value
+  start_cond_flag = ""
   
   # first write data to an input file
   data[is.na(data)] <- -9 
@@ -25,11 +29,23 @@ run_flockture_bin <- function(data,
   
   file.copy(eptemp, "tmp_extraparams", overwrite = TRUE)
   
+  # if there are starting configs, then write them to a file for flockture to read */
+  if(length(start_config) > 0) {
+    if(any(start_config > K)) stop("can't have start_config values > K")
+    
+    # now, recycle start_config as needed for all the runs.
+    sconf <- rep(start_config, length.out = (reps + 1) * nrow(data)) # add one because flockture reinitializes the data at the very end, too, even though it is not really used.
+    cat(format(c(length(sconf), sconf-1), scientific = FALSE), sep=" ", fill = 80, file = "tmp_flock_starts.txt" )
+    
+    # set the flag
+    start_cond_flag = "-f tmp_flock_starts.txt"
+  }
   
   # make a command line to run flockture
   commline <- paste(flockture_bin,
                     "-m tmp_mainparams",
                     "-e tmp_extraparams",
+                    start_cond_flag,
                     "-K",  K,
                     "-L",  ncol(data)/2,
                     "-N", nrow(data),

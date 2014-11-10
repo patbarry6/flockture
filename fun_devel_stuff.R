@@ -10,8 +10,17 @@ D5 <- read.table("data/struct_input_1.txt", row.names = 1)
 # take just the first two pops
 D2 <- D5[ grep("^Pop_[12]", rownames(D5)), ]
 
+# define some starting conditions if you want:
+sc <- c(rep(c(1,2), length.out = nrow(D2)),
+        rep(c(2,1), length.out = nrow(D2)),
+        rep(c(1,1,2,2), length.out = nrow(D2)),
+        rep(c(1,1,1,2,2,2), length.out = nrow(D2)),
+        rep(c(2,2,2,1,1,1), length.out = nrow(D2))
+)
+
+
 # run flockture on it and grab the results out
-d2_flokt <- run_flockture_bin(D2, K = 2)
+d2_flokt <- run_flockture_bin(D2, K = 2, start_config = sc)
 d2_outs <- slurp_flockture_dumpola()
 
 

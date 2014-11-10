@@ -29,6 +29,7 @@
 int g_Flock_Print_Qs = 0;
 int gFlockRep = 0;
 int gFlockIter = 0;
+int *gFLOCKTURE_START_CONFIG = NULL;
 
 void InitializeZ (int *Geno, struct IND *Individual, int *Z);
 void UpdateQAdmixture (double *Q, int *Z, double *Alpha, struct IND *Individual);
@@ -723,6 +724,55 @@ void Initialization (int *Geno, int *PreGeno,
 
   for (ind=0; ind<NUMINDS; ind++) {
     sumIndLikes[ind] = indlike_norm[ind] = 0.0;
+  }
+  
+  
+  /* ECA: Here is the specialized initialization for flockture.  Basically, we set the Q's
+  to 1.0 for a random cluster for each individual, unless gFLOCKTURE_START_CONFIG is not NULL  */
+  /* ECA added this to force starting from a particular, given configuration */
+  if(gFLOCKTURE_START_CONFIG) {
+  	for (ind=0; ind<NUMINDS; ind++) {
+    	for (pop = 0; pop < MAXPOPS; pop++) {
+      	Q[QPos (ind, pop)] = 0.0;
+      }
+      Q[QPos (ind, gFLOCKTURE_START_CONFIG[gFlockRep * NUMINDS + ind])] = 1.0;
+      /*printf("Just set gFlockRep = %d, NUMINDS = %d, ind = %d, at pop = %d   to   %f\n", 
+      		gFlockRep, NUMINDS, ind, gFLOCKTURE_START_CONFIG[gFlockRep * NUMINDS + ind],
+      		Q[QPos (ind, gFLOCKTURE_START_CONFIG[gFlockRep * NUMINDS + ind])]); */
+  	}
+  }
+  else {  /* if no starting configuration, then we just randomly assign them to populations */
+  	double tmpprobs[500]; 
+  	int start_pop;
+  	for(pop = 0; pop < MAXPOPS; pop++) tmpprobs[pop] = 1.0/MAXPOPS;
+  	for (ind=0; ind<NUMINDS; ind++) {
+  		for (pop = 0; pop < MAXPOPS; pop++) {
+      	Q[QPos (ind, pop)] = 0.0;
+      }
+  		start_pop = PickAnOption (MAXPOPS, 1.0, tmpprobs);
+  		Q[QPos (ind, start_pop)] = 1.0;
+  	}
+  }
+  /* now, we initialize the Z's according to the Q's */
+  for (ind = 0; ind < NUMINDS; ind++) {
+  	int start_pop;
+  	int line;
+  	int allele;
+  	for(pop = 0; pop < MAXPOPS; pop++) {
+  		if(Q[QPos (ind, pop)] > .99) {
+  			start_pop = pop;
+  		}
+  	}
+    for (line = 0; line < LINES; line++) {
+      for (loc = 0; loc < NUMLOCI; loc++) {
+        allele = Geno[GenPos (ind, line, loc)]; /*missing data */
+        if (allele == MISSING) {
+          Z[ZPos (ind, line, loc)] = UNASSIGNED;
+        } else {  /*------data present-----------*/
+        	Z[ZPos (ind, line, loc)] = start_pop;
+        }
+      }
+    }
   }
 }
 
@@ -3136,11 +3186,32 @@ int main (int argc, char *argv[])
   /*Melissa's new variables added 7/12/07 to use priors based on sampling location*/
   double *LocPrior=NULL, *sumLocPrior=NULL, LocPriorLen=0;
 
+	/* ECA initializes this, hastily */
+	gUSE_FLOCKTURE_START_CONFIG = 0;
 
   /*=====Code for getting started=============================*/
 
   Welcome (stdout);             /*welcome */
   GetParams (0,argc,argv);      /*read in parameter values */
+  
+  
+  /* ECA: read in starting configurations for flockture */
+  if(gUSE_FLOCKTURE_START_CONFIG) {
+  	FILE *tmpfp;
+  	int allocsize;
+  	int xxi;
+  	if((tmpfp = fopen(gFLOCKTURE_START_FILE, "r")) == NULL) {
+  		fprintf(stderr, "Could not open file %s to get flockture starting configs\nExiting...\n", gFLOCKTURE_START_FILE);
+  		exit(1);
+  	}
+  	/* the first int in the file should be the length of vector needed to hold the start configs */
+  	fscanf(tmpfp, " %d", &allocsize);
+  	gFLOCKTURE_START_CONFIG =  (int *)calloc(allocsize, sizeof(int));
+  	for(xxi = 0; xxi < allocsize; xxi++) {
+  		fscanf(tmpfp, " %d", &(gFLOCKTURE_START_CONFIG[xxi]));
+  	}
+  	fclose(tmpfp);
+  }  	
 
   CheckParamCombinations();     /*check that some parameter combinations are valid*/
 
@@ -3292,7 +3363,6 @@ int main (int argc, char *argv[])
     
     /* flockture...Let BURNIN be the number of iterations to do for each 
     rep of the FLOCK algorithm */
-    printf("REPREPREP: rep = %d\n", rep);
     if((rep + 1) % BURNIN == 0 && rep > 0) {
       g_Flock_Print_Qs = 1;
     }
