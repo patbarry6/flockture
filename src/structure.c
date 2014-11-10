@@ -1610,11 +1610,11 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
       log probs, so that we can print that out for each configuration. */
       sum = 0.0;
       for (pop=0; pop < MAXPOPS; pop++) {
-        log_p_sum += ProbsVector[pickedpop];  /* ECA: this accumulates over indivs the log_prob of
-                                              the genotype given the cluster each indiv gets assigned to */
         sum += (ProbsVector[pop] = exp(ProbsVector[pop]-max));
-        
       }
+      
+      log_p_sum += ProbsVector[pickedpop]/sum;  /* ECA: this accumulates over indivs the log_prob of
+                                              the genotype given the cluster each indiv gets assigned to */
       
       /*  ECA commented this line out because we want to just assign it to the pop with highest prob.
       And we do that by setting pickedpop up above

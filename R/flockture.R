@@ -88,10 +88,11 @@ slurp_flockture_dumpola <- function(file = "tmp_flockture_dumpola") {
 #' were found multiple times
 plateau_summarize <- function(W) {
   member_names <- unname(sapply(W$prtn_list, function(x) paste(sort(x), collapse = "-------")))
-  plats <- sort(unclass(table(member_names)), decreasing = TRUE)
+  plats <- plyr::count(member_names)
+  plats <- plats[order(plats$freq, decreasing = TRUE), ]
   
   # get a list of which reps are in each of those
-  reps_in_plats <- lapply(names(plats), function(x) which(member_names == x))
+  reps_in_plats <- lapply(plats$x, function(y) which(member_names == y))
   
   # make a named vector to put plateau ID # and plateau length into the data frames.
   # there must be a cleaner way of doing this
