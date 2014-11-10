@@ -3,14 +3,14 @@
 There is a piece of genetic analysis software called 
 [_flock_](http://www.bio.ulaval.ca/fileadmin/documents/Photos_professeurs/Julie_turgeon/Publications_PDF/DuchesneTurgeon_JoH_FlockKproblem.pdf) that claims
 to be quite novel in its approach to clustering individuals on the basis
-of their genotypes.  In a manuscript, we have showed with a simple mathematical
+of their genotypes.  In a manuscript, we have shown with a simple mathematical
 analysis that the underlying model
 used in the FLOCK approach is one of the models implemented in the program
 [_structure_](http://pritchardlab.stanford.edu/structure.html).
 
 Another way of demonstrating the similarity between the programs is to
-modify the source code os _structure_ so that it works like _flock_.
-That is what we do here.  This is in development.
+modify the source code of _structure_ so that it works like _flock_.
+That is what we have done here.
 
 
 We have started with the _structure_ distribution as the very first commit.
@@ -27,6 +27,13 @@ http://pritchardlab.stanford.edu/structure.html
 It is posted here with permission.  
 
 We repeat, don't use this as a source for structure's code.
+
+We also don't recommend using this code to emulate the behavior of flock.  Better to just use
+structure.  Howver, flockture runs much faster than flock itself and can return more information 
+about intermediate calculations than flock does, so it might be useful for people  endeavoring
+to understand how the flock algorithm behaves.
+
+We are currently still testing to confirm that flockture yields the same results as flock.
 
 ## Running stuff
 
