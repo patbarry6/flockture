@@ -29,7 +29,7 @@ It is posted here with permission.
 We repeat, don't use this as a source for structure's code.
 
 We also don't recommend using this code to emulate the behavior of flock.  Better to just use
-structure.  Howver, flockture runs much faster than flock itself and can return more information 
+structure.  However, flockture runs much faster than flock itself and can return more information 
 about intermediate calculations than flock does, so it might be useful for people  endeavoring
 to understand how the flock algorithm behaves.
 
