@@ -1,0 +1,7 @@
+*.aux
+*.log
+*.blg
+*.bbl
+*.pdfsync
+*.synctex.gz
+alle-freq-adjustments.pdf
