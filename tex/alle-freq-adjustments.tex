@@ -121,9 +121,9 @@ Now, the adjustments to allele frequencies fall into a variety of categories as 
 		\item [Exactly one of $x_{i\ell y}$ or $x_{i\ell y'}$ is zero:] Assume wlog that that $x_{i\ell y} = 0$.  Then, we will use:
 		\begin{eqnarray*}
 			p^*_{i\ell y} & = & \frac{1}{n_{i\ell} + 1} \\
-			p^*_{i\ell y'} & = & \frac{x_{i\ell y'}}{n_{i\ell} + 1} = p_{i\ell y'} R_i^{(1)}
+			p^*_{i\ell y'} & = & \frac{x_{i\ell y'}}{n_{i\ell} + 1} = p_{i\ell y'} S_i^{(1)}
 		\end{eqnarray*}
-		where $R_i^{(1)} = \frac{n_i}{n_i + 1}$ and can be precomputed at the beginning of each sweep when allele frequencies are computed.
+		where $S_i^{(1)} = \frac{n_i}{n_i + 1}$ and can be precomputed at the beginning of each sweep when allele frequencies are computed.
 		\item [Both of $x_{i\ell y}$ or $x_{i\ell y'}$ are zero:] ~
 		\begin{description}
 			\item [$y$ and $y'$ are the same allele (\ie the focal indiv is homozygous):] In this case
@@ -147,6 +147,20 @@ Now, the adjustments to allele frequencies fall into a variety of categories as 
 		\[
 			x^*_{i\ell y} = x^*_{i\ell y'} = x_{i\ell y} - 2
 		\]
+		\begin{description}
+			\item [If $x^*_{i\ell y} > 0$:] In this case these is no need for a zero adjustment and we just use
+			\[
+				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{x^*_{i\ell y}}{n_i - 2} = x^*_{i\ell y} R_i^{(2)}
+			\]
+			where $R_i^{(2)} = \frac{1}{n_i - 2}$ is the reciprocal of $n_i - 2$, which can be precomputed.
+			\item [If $x^*_{i\ell y} \leq 0$:] In this case we must make a zero adjustment by adding one copy of the
+			missing allele.  So, we've removed two gene copies but then we have, in effect, put one back.  So:   
+			\[
+				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{1}{n_i - 1} = x^*_{i\ell y} R_i^{(1)}
+			\]
+			where $R_i^{(1)} = \frac{1}{n_i - 1}$ is the reciprocal of $n_i - 1$, which can be precomputed.
+		\end{description}
+		\item [The focal individual is heterozygout:] I just have to fill this out and then figure out how to implement it as cleanly as possible.
 	\end{description}
 
 \end{description}
