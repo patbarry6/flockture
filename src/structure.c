@@ -1468,7 +1468,6 @@ void UpdateP (double *P, double *LogP, double *Epsilon, double *Fst,
   int N_sum;  /* for getting total number of gene copies allocated to each pop */
 
 	
-printf("Inside UpdateP\n");
   Parameters = calloc (MAXALLELES, sizeof (double));
   NumAFromPop = calloc (MAXPOPS * MAXALLELES, sizeof (int));
   
@@ -1501,9 +1500,9 @@ printf("Inside UpdateP\n");
 	   }
 	   
 	   /* Now set the gN_RECIPROCALS */
-	   gN_RECIPROCALS[PPos(loc, pop, 0)] = 1.0 / N_sum;
-	   gN_RECIPROCALS[PPos(loc, pop, 1)] = 1.0 / (N_sum + 1.0);
-	   gN_RECIPROCALS[PPos(loc, pop, 2)] = 1.0 / (N_sum + 2.0);
+	   gN_RECIPROCALS[NRPos(loc, pop, 0)] = 1.0 / N_sum;
+	   gN_RECIPROCALS[NRPos(loc, pop, 1)] = 1.0 / (N_sum + 1.0);
+	   gN_RECIPROCALS[NRPos(loc, pop, 2)] = 1.0 / (N_sum + 2.0);
  			
     }
   }
@@ -1706,8 +1705,8 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
 		   	 precomputed those in UpdateP and stored them in gN_RECIPROCALS which is
 		   	 indexed by pop, loc, and got_added. */
 		   	 
-			 runningtotal *=  Xstar0 * gN_RECIPROCALS[PPos (loc, pop, got_added)] * 
-			 				  Xstar1 * gN_RECIPROCALS[PPos (loc, pop, got_added)];
+			 runningtotal *=  Xstar0 * gN_RECIPROCALS[NRPos (loc, pop, got_added)] * 
+			 				  Xstar1 * gN_RECIPROCALS[NRPos (loc, pop, got_added)];
 			 
 			 if (runningtotal < UNDERFLO) {      /*this is to avoid having to
 												 take logs all the time */
@@ -1748,7 +1747,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
       }
       Q[QPos (ind, pickedpop)] = 1.0;
       
-      if(1 || g_Flock_Print_Qs > 0) {  /* ECA added this to print out the configuration and the Qs */
+      if(g_Flock_Print_Qs > 0) {  /* ECA added this to print out the configuration and the Qs */
         printf ("FLOCKTURE_INDIV: %d    %3d ", gFlockRep + 1, ind + 1);
         if (LABEL)
           printf ("%s  ", Individual[ind].Label);
@@ -1764,7 +1763,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
 	/* at the end we also print out the clusters of individuals using their indexes (sorted within clusters)
 	so that we can use these in R and have a definitive way of characterizing different partitions
 	so we can look for "plateaus" */
-	if(1 || g_Flock_Print_Qs > 0) {  /* this makes it only print out after the last iteration per rep */
+	if(g_Flock_Print_Qs > 0) {  /* this makes it only print out after the last iteration per rep */
 		for (pop = 0; pop < MAXPOPS; pop++) {
 			printf ("FLOCKTURE_CLUSTER_STRING:  %d   %d    %d  >", gFlockRep + 1, gFlockIter + 1, pop + 1);
 			for (ind = 0; ind < NUMINDS; ind++) if(Q[QPos (ind, pop)] > 0.99) printf("%d-", ind + 1);
