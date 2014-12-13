@@ -1,0 +1,217 @@
+\documentclass[11pt]{article}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{amsfonts}
+\usepackage{natbib}
+\usepackage{subfigure}
+\usepackage{pdfsync}
+\usepackage{xspace}
+%\usepackage[pdftex, colorlinks=true,urlcolor=blue]{hyperref}
+%\usepackage{wallpaper}
+
+%%%% HERE IS SOME WATERMARK STUFF
+%\addtolength{\wpXoffset}{-.2in}
+%\CenterWallPaper{1.1}{/Users/eriq/Documents/work/nonprj/WaterMarks/StrictDraftWatermark.eps}
+
+
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+
+
+%% some handy things for making bold math
+\def\bm#1{\mathpalette\bmstyle{#1}}
+\def\bmstyle#1#2{\mbox{\boldmath$#1#2$}}
+\newcommand{\thh}{^\mathrm{th}}
+
+
+%% Some pretty etc.'s, etc...
+\newcommand{\cf}{{\em cf.}\xspace }
+\newcommand{\eg}{{\em e.g.},\xspace }
+\newcommand{\ie}{{\em i.e.},\xspace }
+\newcommand{\etal}{{\em et al.}\ }
+\newcommand{\etc}{{\em etc.}\@\xspace}
+
+
+
+%% the page dimensions from TeXShop's default---very nice
+\textwidth = 6.5 in
+\textheight = 9 in
+\oddsidemargin = 0.0 in
+\evensidemargin = 0.0 in
+\topmargin = 0.0 in
+\headheight = 0.0 in
+\headsep = 0.0 in
+\parskip = 0.2in
+\parindent = 0.0in
+
+
+\title{Explanation of a few modifications of\\
+{\em structure} to arrive \\
+ at {\em flockture}}
+\author{Eric C. Anderson\thanks{
+    Fisheries Ecology Division, 
+    Southwest Fisheries Science Center, 
+    110 Shaffer Road,
+    Santa Cruz, CA 95060}
+}
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Short abstract.
+\end{abstract}
+
+
+
+
+\section{Adjustments to allele frequencies}
+
+There are two main differences between {\em structure} and {\em flock} in this area.
+{\em structure} samples allele frequencies from a  Dirichlet distribution conditional on a prior that has non-zero weight on every allele and 
+on all the gene copies currently allocated to a particular population.  In the {\em flock} approach, by contrast, 
+allele frequencies may end up being computed differently for each individual because of the leave-one-out requirement
+that comes out of doing Gibbs sampling while marginalizing over the allele frequencies, and also because they do not 
+choose a Dirichlet prior on allele frequencies, but rather, deal with allele frequencies of zero on the fly
+in a Paetkau-like manner.
+
+Pierre Duchesne answered my question about how they dealt with zero-frequency alleles this way:
+
+{\sl 
+Here is how FLOCK deals with zero-frequency in references:
+\begin{enumerate}
+\item AFLP ~~ (more generally binary data) The frequency used is $\frac{1}{n+1}$ where $n$ stands for  the size (number of genotypes) of the reference in its current state (iteration).
+\item MSAT ~~ The frequency used is $\frac{1}{2n+1}$ where $n$ stands for  the size of the reference in its current state (iteration).
+\end{enumerate}
+To be more precise, $n$ is corrected to $n-1$ when the reference considered is that of the currently processed
+genotype if the latter was part of this reference in the previous partition.
+This is a consequence of the application of the leave-one-out procedure 
+(all frequencies are also corrected accordingly).
+ 
+Other commonly used rules for the zero-frequency correction would sometimes produce slightly
+different cluster compositions involving only a few `gray' genotypes.
+However the impact on the number and length of the plateaus would be practically null
+and so the decisions from the application of the stopping and the estimation (K)
+rules would be the same.
+}
+
+OK.  That seems pretty straightforward.  Here I write down the strategy for implementing this.  My main concern is going
+to be to avoid lots of floating point divides during the leave-one-out part.  It will be better if we can precompute the reciprocals
+so that most of those will become floating point multiplies. Some things are worth noticing:
+\begin{itemize}
+\item {\em structure} allows partially missing data at a locus, but I am going to implement this assuming that if one gene copy is missing at a locus
+then both of them must be, since that appears to be how it is thought of in {\em flock}.
+\item We only need to deal with zero-allele frequencies when we are computing the genotype probability for an individual that actually carries
+that missing allele.
+\end{itemize}
+
+Index populations by $i = 1,\ldots, M$, loci by $\ell = 1,\ldots,L$, and alleles by $k = 1,\ldots, K_\ell$. Since we will only ever be focusing on
+a single individual at a time, we don't need to index individuals.  Let $x_{i\ell k}$ denote the number of copies of allele $k$ at locus $j$ counted in population $i$.  With no modifications, then, we would precompute the allele frequencies in the standard fashion as:
+\[
+p_{i\ell k} = \frac{x_{i\ell k}}{n_{i\ell}}
+\]
+where $n_{i\ell}$ is the number of observed {\em gene copies} (not individuals) at locus $\ell$ in population $i$.  We will also denote the allelic type
+of the two gene copies in the focal individual at locus $\ell$ by $y$ and $y'$, respectively.
+
+Now, the adjustments to allele frequencies fall into a variety of categories as follows:
+\begin{description}
+	\item[Focal individual not currently allocated to $i$:] 
+	\begin{description}
+		\item [Neither $x_{i\ell y}$ nor $x_{i\ell y'}$ are zero:] No adjustments necessary.  Use $p_{i\ell y}$ and $p_{i\ell y'}$ as before.
+		\item [Exactly one of $x_{i\ell y}$ or $x_{i\ell y'}$ is zero:] Assume wlog that $x_{i\ell y} = 0$.  Then, we will use:
+		\begin{eqnarray*}
+			p^*_{i\ell y} & = & \frac{1}{n_{i\ell} + 1} \\
+			p^*_{i\ell y'} & = & \frac{x_{i\ell y'}}{n_{i\ell} + 1} = p_{i\ell y'} S_i^{(1)}
+		\end{eqnarray*}
+		where $S_i^{(1)} = \frac{n_i}{n_i + 1}$ and can be precomputed at the beginning of each sweep when allele frequencies are computed.
+		\item [Both of $x_{i\ell y}$ or $x_{i\ell y'}$ are zero:] ~
+		\begin{description}
+			\item [$y$ and $y'$ are the same allele (\ie the focal indiv is homozygous):] In this case
+			\[
+				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{1}{n_i + 1}
+			\]
+			and no other adjustments are necessary or relevant.  Note that $\frac{1}{n_i + 1}$ can be precomputed.
+			\item [$y$ and $y'$ are different alleles:] In this case, each allele gets a count of one added to it
+			so we have to add 2 instead of 1 to the normalization.
+			\[
+				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{1}{n_i + 2}
+			\]
+		\end{description}
+	\end{description}
+	\item [Focal individual currently allocated to $i$:] In this case we have to take care of the leave-one-out aspect of things too.
+	and we have to be aware that leaving an individual's genotype out might create a zero allele frequency where non had existed before.  
+	Operationally, I think the first thing to do is compute what we will call $x^*$---the frequency after leaving out the focal
+	individual's genotypes. 
+	\begin{description}
+		\item [The focal individual is homozygous:] In this case we have:
+		\[
+			x^*_{i\ell y} = x^*_{i\ell y'} = x_{i\ell y} - 2
+		\]
+		\begin{description}
+			\item [If $x^*_{i\ell y} > 0$:] In this case these is no need for a zero adjustment and we just use
+			\[
+				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{x^*_{i\ell y}}{n_i - 2} = x^*_{i\ell y} R_i^{(2)}
+			\]
+			where $R_i^{(2)} = \frac{1}{n_i - 2}$ is the reciprocal of $n_i - 2$, which can be precomputed.  We don't bother
+			making it a function of $p$ because we already have to compute $x^*$.
+			\item [If $x^*_{i\ell y} \leq 0$:] In this case we must make a zero adjustment by adding one copy of the
+			missing allele.  So, we've removed two gene copies but then we have, in effect, put one back.  So:   
+			\[
+				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{1}{n_i - 1} = R_i^{(1)}
+			\]
+			where $R_i^{(1)} = \frac{1}{n_i - 1}$ is the reciprocal of $n_i - 1$, which can be precomputed.
+		\end{description}
+		\item [The focal individual is heterozygous:] ~
+		\begin{description}
+			\item [If $x^*_{i\ell y} > 0$ and $x^*_{i\ell y'} > 0$:] Nothing to be done for zero adjustment
+			\begin{eqnarray*}
+				p^*_{i\ell y} & = & \frac{x^*_{i\ell y}}{n_i - 2} = x^*_{i\ell y} R_i^{(2)} \\
+				p^*_{i\ell y'} & = &  \frac{x^*_{i\ell y'}}{n_i - 2} = x^*_{i\ell y'} R_i^{(2)}
+			\end{eqnarray*}
+			\item [If $x^*_{i\ell y} \leq 0$ and $x^*_{i\ell y'} > 0$:] (Or the symmetrical case, obviously).  In this case 
+			you we have to adjust both of them in some way.  But we are dividing by $n_i - 1$ because we have put one extra
+			gene copy back into the pile.
+			\begin{eqnarray*}
+				p^*_{i\ell y} & = & \frac{1}{n_i - 1} =  R_i^{(1)} \\
+				p^*_{i\ell y'} & = &  \frac{x^*_{i\ell y'}}{n_i - 1} = x^*_{i\ell y'} R_i^{(1)}
+			\end{eqnarray*}
+			\item [If $x^*_{i\ell y} \leq 0$ and $x^*_{i\ell y'} \leq 0$:]  In this case 
+			you we have to adjust both of them by adding a gene copy back in there for them, and we are dividing by $n_i - 2$ because we
+			have to put two extra gene copies back onto the pile.
+			\[
+				p^*_{i\ell y}  = p^*_{i\ell y'} \frac{1}{n_i - 2} =  R_i^{(2)}
+			\]
+
+		\end{description}
+
+	\end{description}
+
+\end{description}
+
+\subsection{Doing this operationally}
+
+So, now that I see what needs to be done, I want to figure out how to do it with the least code.  
+Obviously we only have to do something if both gene copies are not missing.  Then, I think
+perhaps we should first compute $x^*_{i\ell y}$ and $x^*_{i\ell y'}$.  If the individual is not from the 
+current population then $x^*$ is just $x$.  Then we can choose 
+whatever action we take as a function of just a few Boolean
+variables:
+\begin{enumerate}
+\item Is individual allocated to the population in question?
+\item Is $x^*_{i\ell y} = 0$
+\item Is $x^*_{i\ell y'} = 0$
+\item Is the individual homozygous?
+\end{enumerate}
+
+And working through this stuff should then work something like this:
+\begin{description}
+\item [If (1) is true:] compute $x^*$'s by simple subtraction from $x$
+\item [Otherwise:] $x^*$ just comes straight from $x$.
+\item [Assess (2), (3), and (4):] Easy.
+\item [Once that is done, it is a simple decision tree. ]  And we might just as well do everything with the $x^*$'s, rather than worrying
+about the $p$'s.
+\end{description}
+
+\bibliography{anderson}
+\bibliographystyle{mychicago}
+ \end{document}
