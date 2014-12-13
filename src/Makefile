@@ -2,6 +2,10 @@ OPT = -O3
 #OPT = -O3 -m64 -static
 #OPT = -Wall -g 
 
+#OPT = -g -O1
+
+
+
 CFLAGS = -Wall -pedantic
 CC = gcc
 LIBS = -lm
@@ -19,6 +23,7 @@ target: structure
 #debug: CFLAGS += -g
 #debug: clean
 #debug: target
+
 
 structure: structure.o params.o datain.o output.o ran.o mymath.o
 	$(CC) -o flockture structure.o params.o datain.o output.o ran.o mymath.o $(OPT) $(LIBS)

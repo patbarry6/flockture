@@ -4,11 +4,9 @@ library(ggplot2)
 
 source("R/flockture.R")
 
-# read in the 4000 individuals at Fst = 0.03
+# read in a small data set:
 D5 <- read.table("data/small_data.txt", row.names = 1)
 
-# take just the first two pops
-D2 <- D5[ grep("^Pop_[12]", rownames(D5)), ]
 
 # define some starting conditions if you want:
 sc <- c(rep(c(1,2), length.out = nrow(D2)),
@@ -18,7 +16,10 @@ sc <- c(rep(c(1,2), length.out = nrow(D2)),
         rep(c(2,2,2,1,1,1), length.out = nrow(D2))
 )
 
-small_start_correct <- c(rep(1,10), rep(2, 40))
+# here we could start it at the correct configuration:
+small_start_correct <- as.numeric(str_sub(rownames(D5), 5, 5))
+
+
 # run flockture on it and grab the results out
 d2_flokt <- run_flockture_bin(D5, K = 2, iter = 20, reps = 50, start_config = small_start_correct)
 d2_outs <- slurp_flockture_dumpola()
@@ -29,7 +30,7 @@ d2_outs_p <- plateau_summarize(d2_outs)
 
 
 # now, draw lines of log_prob against iterations for the 
-# 100 reps, and color them according to plateau length
+# reps, and color them according to plateau length
 xx <- d2_outs_p$log_probs[d2_outs_p$log_probs$plat.len > 1, ]
 ggplot(d2_outs_p$log_probs, aes(x = iter, y = log.prob, group = rep, color = factor(plat.len))) + 
   geom_line() +

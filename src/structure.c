@@ -30,6 +30,8 @@ int g_Flock_Print_Qs = 0;
 int gFlockRep = 0;
 int gFlockIter = 0;
 int *gFLOCKTURE_START_CONFIG = NULL;
+int *XCOUNTS;
+double *gN_RECIPROCALS; 
 
 void InitializeZ (int *Geno, struct IND *Individual, int *Z);
 void UpdateQAdmixture (double *Q, int *Z, double *Alpha, struct IND *Individual);
@@ -736,9 +738,9 @@ void Initialization (int *Geno, int *PreGeno,
       	Q[QPos (ind, pop)] = 0.0;
       }
       Q[QPos (ind, gFLOCKTURE_START_CONFIG[gFlockRep * NUMINDS + ind])] = 1.0;
-      /*printf("Just set gFlockRep = %d, NUMINDS = %d, ind = %d, at pop = %d   to   %f\n", 
+      printf("Just set gFlockRep = %d, NUMINDS = %d, ind = %d, at pop = %d   to   %f\n", 
       		gFlockRep, NUMINDS, ind, gFLOCKTURE_START_CONFIG[gFlockRep * NUMINDS + ind],
-      		Q[QPos (ind, gFLOCKTURE_START_CONFIG[gFlockRep * NUMINDS + ind])]); */
+      		Q[QPos (ind, gFLOCKTURE_START_CONFIG[gFlockRep * NUMINDS + ind])]);
   	}
   }
   else {  /* if no starting configuration, then we just randomly assign them to populations */
@@ -1463,7 +1465,10 @@ void UpdateP (double *P, double *LogP, double *Epsilon, double *Fst,
   double *Parameters;           /*[MAXALLS] **Parameters of posterior on P */
   int *NumAFromPop;             /*[MAXPOPS][MAXALLS] **number of each allele from each pop */
   int tot_alles, num_zeroes;
+  int N_sum;  /* for getting total number of gene copies allocated to each pop */
 
+	
+printf("Inside UpdateP\n");
   Parameters = calloc (MAXALLELES, sizeof (double));
   NumAFromPop = calloc (MAXPOPS * MAXALLELES, sizeof (int));
   
@@ -1482,14 +1487,24 @@ void UpdateP (double *P, double *LogP, double *Epsilon, double *Fst,
       for (allele = 0; allele < NumAlleles[loc]; allele++) {
       	tot_alles += NumAFromPop[NumAFromPopPos (pop, allele)];
       	num_zeroes += NumAFromPop[NumAFromPopPos (pop, allele)] == 0;
-      }
+      }      
       
-      /* Now make them frequencies, adding one observed allele to every pop at which the allele was not observed
-      and put the results in the arrays where they are needed. */
-			for (allele = 0; allele < NumAlleles[loc]; allele++) {
-				P[PPos(loc, pop, allele)] = (NumAFromPop[NumAFromPopPos (pop, allele)] + (NumAFromPop[NumAFromPopPos (pop, allele)] == 0))/ (double)(tot_alles + num_zeroes); 
-				LogP[PPos(loc, pop, allele)] = log(P[PPos(loc, pop, allele)]);
-			}
+	   /* Now make them frequencies, adding one observed allele to every pop at which the allele was not observed
+	   and put the results in the arrays where they are needed.  And fill the XCOUNTS and gN_RECIPROCALS so we can do leave one
+	   out appropriately */
+	   N_sum = 0;
+	   for (allele = 0; allele < NumAlleles[loc]; allele++) {
+		   P[PPos(loc, pop, allele)] = (NumAFromPop[NumAFromPopPos (pop, allele)] + (NumAFromPop[NumAFromPopPos (pop, allele)] == 0))/ (double)(tot_alles + num_zeroes); 
+		   LogP[PPos(loc, pop, allele)] = log(P[PPos(loc, pop, allele)]);
+		   XCOUNTS[PPos(loc, pop, allele)] = NumAFromPop[NumAFromPopPos (pop, allele)];
+		   N_sum += NumAFromPop[NumAFromPopPos (pop, allele)];
+	   }
+	   
+	   /* Now set the gN_RECIPROCALS */
+	   gN_RECIPROCALS[PPos(loc, pop, 0)] = 1.0 / N_sum;
+	   gN_RECIPROCALS[PPos(loc, pop, 1)] = 1.0 / (N_sum + 1.0);
+	   gN_RECIPROCALS[PPos(loc, pop, 2)] = 1.0 / (N_sum + 2.0);
+ 			
     }
   }
 
@@ -1610,17 +1625,30 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
       conditional probabilities. */
 {
 
-  int ind, line, loc, pop;
-  int allele;
+  int ind, loc, pop;
   double *ProbsVector;          /*[MAXPOPS] */
   double sumlogs, sum, log_p_sum = 0.0; 
   double runningtotal;
   double max=0.0, prob;
   int pickedpop;
+  /* some variables for flockture's leave-one-out / zero-addition mechanism */
+  int IndPop;  /* set to the index of the pop that the current ind is allocated to */
+  int Xstar0, Xstar1; /* counts of focal alleles in pop after leave-one-out */
+  int y0, y1; /* allelic types of the first and second gene copies at the indiv */
+  int got_added; /* records how many extra gene copies were added to account for zero frequencies */
 
   ProbsVector = calloc (MAXPOPS, sizeof (double));
 
   for (ind = 0; ind < NUMINDS; ind++) {
+  
+  	/* determine which pop ind is currently allocated to (only valid for non-admixture model) */
+  	for (IndPop = 0, pop = 0; pop < MAXPOPS; pop++) {
+  		if(Q[QPos (ind, pop)] > 0.99) {
+  			IndPop = pop;
+  			break;
+  		}
+  	}
+  
     if ((!((USEPOPINFO) && (Individual[ind].PopFlag)))) {  
       /* ie don't use individuals for whom prior pop info is used */
       for (pop = 0; pop < MAXPOPS; pop++) {      /*make a vector of log probs for each pop */
@@ -1634,19 +1662,62 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
         }
 
         runningtotal = prob;
-        for (line = 0; line < LINES; line++) {
-          for (loc = 0; loc < NUMLOCI; loc++) {
-            allele = Geno[GenPos (ind, line, loc)];
-            if (allele != MISSING) {
-              runningtotal *= P[PPos (loc, pop, allele)];
-              if (runningtotal < UNDERFLO) {      /*this is to avoid having to
-                                                  take logs all the time */
-                sumlogs += log (runningtotal);
-                runningtotal = 1;
-              }
-            }
-          }
-        }
+        
+        /* ECA:  This part gets overhauled to do leave-one-out and also to do the 
+        Paetkau-like addition of one gene copy for zero allele frequencies.  
+        	- I revamped the calculation so that it doesn't cycle over LINES.
+        	  Now, it is explicitly designed ONLY FOR DIPLOIDS.
+         */
+        
+        
+		 for (loc = 0; loc < NUMLOCI; loc++) {
+		   y0 = Geno[GenPos (ind, 0, loc)];
+		   y1 = Geno[GenPos (ind, 1, loc)];
+		   
+		   if (y0 != MISSING && y1 != MISSING) {
+		   	 got_added = 0;
+		   	 
+		   	 /* Do leave-one-out step */
+		   	 if(pop == IndPop) {  /* in this case we have to do leave one out.
+		   	 						if y0 == y1 then we pull 2 out of the count. */
+		   	 	Xstar0 = XCOUNTS[ PPos(loc, pop, y0) ] - 1 - (y0 == y1);
+		   	 	Xstar1 = XCOUNTS[ PPos(loc, pop, y1) ] - 1 - (y0 == y1);
+		   	 } else {
+		   	 	Xstar0 = XCOUNTS[ PPos(loc, pop, y0) ];
+		   	 	Xstar1 = XCOUNTS[ PPos(loc, pop, y1) ];
+		   	 }
+		   	 
+		   	 /* adjust allele freqs if Xstar0 or Xstar1 are zeroes */
+		   	 if(Xstar0 == 0) {
+		   	 	Xstar0++;
+		   	 	got_added++;	
+		   	 }
+		   	 if(Xstar1 == 0) {
+		   	 	Xstar1++;
+		   	 	got_added++;
+		   	 }
+		   	 if(got_added > 0 && y0 == y1) got_added = 1;
+		   	 
+		   	 /* ECA: at this juncture, we are ready to compute the frequencies and multiply
+		   	 those into the genotype probabilities.  Basically, for each allele, (y0 or y1) the
+		   	 freq is taken to be Xstar0 or Xstar1, respectively, times a normalization
+		   	 factor which is 1/(n_{loc,pop} + got_added).  To avoid having to do
+		   	 a floating point divide for every gene copy in every individual, I have
+		   	 precomputed those in UpdateP and stored them in gN_RECIPROCALS which is
+		   	 indexed by pop, loc, and got_added. */
+		   	 
+			 runningtotal *=  Xstar0 * gN_RECIPROCALS[PPos (loc, pop, got_added)] * 
+			 				  Xstar1 * gN_RECIPROCALS[PPos (loc, pop, got_added)];
+			 
+			 if (runningtotal < UNDERFLO) {      /*this is to avoid having to
+												 take logs all the time */
+			   sumlogs += log (runningtotal);
+			   runningtotal = 1;
+			 }
+		   }
+		 }
+
+
         ProbsVector[pop] = sumlogs + log (runningtotal);
         if (pop==0 || ProbsVector[pop] > max) {
           max = ProbsVector[pop];
@@ -1677,7 +1748,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
       }
       Q[QPos (ind, pickedpop)] = 1.0;
       
-      if(g_Flock_Print_Qs > 0) {  /* ECA added this to print out the configuration and the Qs */
+      if(1 || g_Flock_Print_Qs > 0) {  /* ECA added this to print out the configuration and the Qs */
         printf ("FLOCKTURE_INDIV: %d    %3d ", gFlockRep + 1, ind + 1);
         if (LABEL)
           printf ("%s  ", Individual[ind].Label);
@@ -1693,7 +1764,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
 	/* at the end we also print out the clusters of individuals using their indexes (sorted within clusters)
 	so that we can use these in R and have a definitive way of characterizing different partitions
 	so we can look for "plateaus" */
-	if(g_Flock_Print_Qs > 0) {  /* this makes it only print out after the last iteration per rep */
+	if(1 || g_Flock_Print_Qs > 0) {  /* this makes it only print out after the last iteration per rep */
 		for (pop = 0; pop < MAXPOPS; pop++) {
 			printf ("FLOCKTURE_CLUSTER_STRING:  %d   %d    %d  >", gFlockRep + 1, gFlockIter + 1, pop + 1);
 			for (ind = 0; ind < NUMINDS; ind++) if(Q[QPos (ind, pop)] > 0.99) printf("%d-", ind + 1);
@@ -3264,6 +3335,7 @@ int main (int argc, char *argv[])
   }
 
 
+printf("About to set aside memory.\n");
   /*=============set aside memory space=====================*/
   Translation = calloc (NUMLOCI * MAXALLELES, sizeof (int));
   NumAlleles = calloc (NUMLOCI, sizeof (int));
@@ -3271,6 +3343,8 @@ int main (int argc, char *argv[])
   Z1 = calloc (NUMINDS * LINES * NUMLOCI, sizeof (int));
   Q = calloc (NUMINDS * MAXPOPS, sizeof (double));
   P = calloc (NUMLOCI * MAXPOPS * MAXALLELES, sizeof (double));
+  XCOUNTS = calloc (NUMLOCI * MAXPOPS * MAXALLELES, sizeof (int));  /* ECA allocates to this global to keep track of allele counts */
+  gN_RECIPROCALS = calloc (NUMLOCI * MAXPOPS * 3, sizeof (double));  /* ECA allocates to this global to keep track of reciprocals of sample sizes incremented by 0, 1, or 2 */
   LogP = calloc(NUMLOCI * MAXPOPS * MAXALLELES, sizeof(double));
   R = calloc (NUMINDS, sizeof (double));
   sumR = calloc (NUMINDS, sizeof (double));
@@ -3369,7 +3443,7 @@ int main (int argc, char *argv[])
     else {
       g_Flock_Print_Qs = 0;
     }
-
+printf("rep = %d, about to enter UpdateP\n", rep);
     UpdateP (P,LogP, Epsilon, Fst, NumAlleles, Geno, Z, lambda, Individual);
 
     if (LINKAGE && rep >= ADMBURNIN) {
