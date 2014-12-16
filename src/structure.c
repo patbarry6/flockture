@@ -32,6 +32,7 @@ int gFlockIter = 0;
 int *gFLOCKTURE_START_CONFIG = NULL;
 int *XCOUNTS;
 double *gN_RECIPROCALS; 
+double *gN_RECIP_LOO;
 
 void InitializeZ (int *Geno, struct IND *Individual, int *Z);
 void UpdateQAdmixture (double *Q, int *Z, double *Alpha, struct IND *Individual);
@@ -1503,7 +1504,11 @@ void UpdateP (double *P, double *LogP, double *Epsilon, double *Fst,
 	   gN_RECIPROCALS[NRPos(loc, pop, 0)] = 1.0 / N_sum;
 	   gN_RECIPROCALS[NRPos(loc, pop, 1)] = 1.0 / (N_sum + 1.0);
 	   gN_RECIPROCALS[NRPos(loc, pop, 2)] = 1.0 / (N_sum + 2.0);
- 			
+	   
+	   /* And set the gN_RECIP_LOO */
+	   gN_RECIP_LOO[NRPos(loc, pop, 0)] = 1.0 / (N_sum - 2.0);
+	   gN_RECIP_LOO[NRPos(loc, pop, 1)] = 1.0 / (N_sum - 2.0 + 1.0);
+	   gN_RECIP_LOO[NRPos(loc, pop, 2)] = 1.0 / (N_sum - 2.0 + 2.0);		
     }
   }
 
@@ -1628,7 +1633,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
   double *ProbsVector;          /*[MAXPOPS] */
   double sumlogs, sum, log_p_sum = 0.0; 
   double runningtotal;
-  double max=0.0, prob;
+  double max=0.0, prob, Prob1, Prob2;
   int pickedpop;
   /* some variables for flockture's leave-one-out / zero-addition mechanism */
   int IndPop;  /* set to the index of the pop that the current ind is allocated to */
@@ -1639,7 +1644,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
   ProbsVector = calloc (MAXPOPS, sizeof (double));
 
   for (ind = 0; ind < NUMINDS; ind++) {
-  
+/* printf("IND: %d\n", ind+1);  */
   	/* determine which pop ind is currently allocated to (only valid for non-admixture model) */
   	for (IndPop = 0, pop = 0; pop < MAXPOPS; pop++) {
   		if(Q[QPos (ind, pop)] > 0.99) {
@@ -1651,6 +1656,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
     if ((!((USEPOPINFO) && (Individual[ind].PopFlag)))) {  
       /* ie don't use individuals for whom prior pop info is used */
       for (pop = 0; pop < MAXPOPS; pop++) {      /*make a vector of log probs for each pop */
+/* printf("POP: %d\n", pop+1); */
         sumlogs = 0;
 
         /*Melissa added 7/12/07*/
@@ -1670,6 +1676,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
         
         
 		 for (loc = 0; loc < NUMLOCI; loc++) {
+/* printf("LOCUS: %d\n", loc); */
 		   y0 = Geno[GenPos (ind, 0, loc)];
 		   y1 = Geno[GenPos (ind, 1, loc)];
 		   
@@ -1705,13 +1712,24 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
 		   	 precomputed those in UpdateP and stored them in gN_RECIPROCALS which is
 		   	 indexed by pop, loc, and got_added. */
 		   	 
-			 runningtotal *=  Xstar0 * gN_RECIPROCALS[NRPos (loc, pop, got_added)] * 
-			 				  Xstar1 * gN_RECIPROCALS[NRPos (loc, pop, got_added)];
+		   	 if(pop == IndPop) {
+		   	 	Prob1 = Xstar0 * gN_RECIP_LOO[NRPos (loc, pop, got_added)];
+		   	 	Prob2 = Xstar1 * gN_RECIP_LOO[NRPos (loc, pop, got_added)];
+		   	 }
+		   	 else {
+		   	 	Prob1 = Xstar0 * gN_RECIPROCALS[NRPos (loc, pop, got_added)];
+		   	 	Prob2 = Xstar1 * gN_RECIPROCALS[NRPos (loc, pop, got_added)];
+		   	 }
+		   	 
+/* printf("PROB1: %f\n", Prob1); */
+/* printf("PROB2: %f\n", Prob2); */
+
+			 runningtotal *= Prob1 * Prob2;
 			 
 			 if (runningtotal < UNDERFLO) {      /*this is to avoid having to
 												 take logs all the time */
 			   sumlogs += log (runningtotal);
-			   runningtotal = 1;
+			   runningtotal = 1.0;
 			 }
 		   }
 		 }
@@ -1722,7 +1740,7 @@ UpdateQNoAdmix (int *Geno, double *Q, double *P, struct IND *Individual, double 
           max = ProbsVector[pop];
           pickedpop = pop;  /* ECA sets pickedpop to the one with highest prob here */
         }
-      }
+      }  /* closes loop over pop */
 
       
       /* ECA leaves this in, because we want to compute the probs of belonging to each
@@ -3344,6 +3362,7 @@ printf("About to set aside memory.\n");
   P = calloc (NUMLOCI * MAXPOPS * MAXALLELES, sizeof (double));
   XCOUNTS = calloc (NUMLOCI * MAXPOPS * MAXALLELES, sizeof (int));  /* ECA allocates to this global to keep track of allele counts */
   gN_RECIPROCALS = calloc (NUMLOCI * MAXPOPS * 3, sizeof (double));  /* ECA allocates to this global to keep track of reciprocals of sample sizes incremented by 0, 1, or 2 */
+  gN_RECIP_LOO  =  calloc (NUMLOCI * MAXPOPS * 3, sizeof (double));  /* ECA allocates to this global to keep track of reciprocals of sample sizes incremented by 0, 1, or 2 */
   LogP = calloc(NUMLOCI * MAXPOPS * MAXALLELES, sizeof(double));
   R = calloc (NUMINDS, sizeof (double));
   sumR = calloc (NUMINDS, sizeof (double));
@@ -3442,7 +3461,7 @@ printf("About to set aside memory.\n");
     else {
       g_Flock_Print_Qs = 0;
     }
-printf("rep = %d, about to enter UpdateP\n", rep);
+/* printf("rep = %d, about to enter UpdateP\n", rep); */
     UpdateP (P,LogP, Epsilon, Fst, NumAlleles, Geno, Z, lambda, Individual);
 
     if (LINKAGE && rep >= ADMBURNIN) {

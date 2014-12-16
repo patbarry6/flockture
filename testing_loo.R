@@ -6,26 +6,14 @@ library(stringr)
 source("R/flockture.R")
 
 # read in a small data set:
-D <- read.table("data/small_data.txt", row.names = 1)
+D <- read.table("data/loo_test1.txt", row.names = 1)
 
-# here we could start it at the correct configuration:
-small_start_correct <- as.numeric(str_sub(rownames(D), 5, 5))
-
-# define some starting conditions if you want:
-sc <- c(small_start_correct,
-        rep(c(1,2), length.out = nrow(D)),
-        rep(c(2,1), length.out = nrow(D)),
-        rep(c(1,1,2,2), length.out = nrow(D)),
-        rep(c(1,1,1,2,2,2), length.out = nrow(D)),
-        rep(c(2,2,2,1,1,1), length.out = nrow(D))
-)
-
-
-sc <- c(c(rep(2,times=14),rep(1,times=15),rep(2,times=10),rep(1,times=11)))
+# this is the starting configuration we want
+startc <- c(rep(1, 5), rep(2, 7))
 
 
 # run flockture on it and grab the results out
-catch <- run_flockture_bin(D, K = 2, iter = 20, reps = 60, start_config = sc)
+catch <- run_flockture_bin(D, K = 2, iter = 2, reps = 1, start_config = startc)
 out <- slurp_flockture_dumpola()
 
 
