@@ -20,6 +20,8 @@ sc <- c(small_start_correct,
         rep(c(2,2,2,1,1,1), length.out = nrow(D))
 )
 
+sc <- c(c(rep(2,times=14),rep(1,times=15),rep(2,times=10),rep(1,times=11)))
+
 
 
 
