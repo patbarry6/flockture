@@ -22,10 +22,11 @@ sc <- c(small_start_correct,
 
 
 sc <- c(c(rep(2,times=14),rep(1,times=15),rep(2,times=10),rep(1,times=11)))
+sc <- c(c(rep(1,times=14),rep(2,times=15),rep(1,times=10),rep(2,times=11)))
 
 
 # run flockture on it and grab the results out
-catch <- run_flockture_bin(D, K = 2, iter = 20, reps = 60, start_config = sc)
+catch <- run_flockture_bin(D, K = 2, iter = 20, reps = 100)
 out <- slurp_flockture_dumpola()
 
 
