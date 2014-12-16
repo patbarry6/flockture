@@ -75,7 +75,7 @@ that comes out of doing Gibbs sampling while marginalizing over the allele frequ
 choose a Dirichlet prior on allele frequencies, but rather, deal with allele frequencies of zero on the fly
 in a Paetkau-like manner.
 
-Pierre Duchesne answered my question about how the dealt with zero-frequency alleles this way:
+Pierre Duchesne answered my question about how they dealt with zero-frequency alleles this way:
 
 {\sl 
 Here is how FLOCK deals with zero-frequency in references:
@@ -115,10 +115,10 @@ of the two gene copies in the focal individual at locus $\ell$ by $y$ and $y'$, 
 
 Now, the adjustments to allele frequencies fall into a variety of categories as follows:
 \begin{description}
-	\item[Focal individual not currently allocated to $i$:] Let's see. 
+	\item[Focal individual not currently allocated to $i$:] 
 	\begin{description}
 		\item [Neither $x_{i\ell y}$ nor $x_{i\ell y'}$ are zero:] No adjustments necessary.  Use $p_{i\ell y}$ and $p_{i\ell y'}$ as before.
-		\item [Exactly one of $x_{i\ell y}$ or $x_{i\ell y'}$ is zero:] Assume wlog that that $x_{i\ell y} = 0$.  Then, we will use:
+		\item [Exactly one of $x_{i\ell y}$ or $x_{i\ell y'}$ is zero:] Assume wlog that $x_{i\ell y} = 0$.  Then, we will use:
 		\begin{eqnarray*}
 			p^*_{i\ell y} & = & \frac{1}{n_{i\ell} + 1} \\
 			p^*_{i\ell y'} & = & \frac{x_{i\ell y'}}{n_{i\ell} + 1} = p_{i\ell y'} S_i^{(1)}
@@ -152,19 +152,65 @@ Now, the adjustments to allele frequencies fall into a variety of categories as 
 			\[
 				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{x^*_{i\ell y}}{n_i - 2} = x^*_{i\ell y} R_i^{(2)}
 			\]
-			where $R_i^{(2)} = \frac{1}{n_i - 2}$ is the reciprocal of $n_i - 2$, which can be precomputed.
+			where $R_i^{(2)} = \frac{1}{n_i - 2}$ is the reciprocal of $n_i - 2$, which can be precomputed.  We don't bother
+			making it a function of $p$ because we already have to compute $x^*$.
 			\item [If $x^*_{i\ell y} \leq 0$:] In this case we must make a zero adjustment by adding one copy of the
 			missing allele.  So, we've removed two gene copies but then we have, in effect, put one back.  So:   
 			\[
-				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{1}{n_i - 1} = x^*_{i\ell y} R_i^{(1)}
+				p^*_{i\ell y} = p^*_{i\ell y'} = \frac{1}{n_i - 1} = R_i^{(1)}
 			\]
 			where $R_i^{(1)} = \frac{1}{n_i - 1}$ is the reciprocal of $n_i - 1$, which can be precomputed.
 		\end{description}
-		\item [The focal individual is heterozygout:] I just have to fill this out and then figure out how to implement it as cleanly as possible.
+		\item [The focal individual is heterozygous:] ~
+		\begin{description}
+			\item [If $x^*_{i\ell y} > 0$ and $x^*_{i\ell y'} > 0$:] Nothing to be done for zero adjustment
+			\begin{eqnarray*}
+				p^*_{i\ell y} & = & \frac{x^*_{i\ell y}}{n_i - 2} = x^*_{i\ell y} R_i^{(2)} \\
+				p^*_{i\ell y'} & = &  \frac{x^*_{i\ell y'}}{n_i - 2} = x^*_{i\ell y'} R_i^{(2)}
+			\end{eqnarray*}
+			\item [If $x^*_{i\ell y} \leq 0$ and $x^*_{i\ell y'} > 0$:] (Or the symmetrical case, obviously).  In this case 
+			you we have to adjust both of them in some way.  But we are dividing by $n_i - 1$ because we have put one extra
+			gene copy back into the pile.
+			\begin{eqnarray*}
+				p^*_{i\ell y} & = & \frac{1}{n_i - 1} =  R_i^{(1)} \\
+				p^*_{i\ell y'} & = &  \frac{x^*_{i\ell y'}}{n_i - 1} = x^*_{i\ell y'} R_i^{(1)}
+			\end{eqnarray*}
+			\item [If $x^*_{i\ell y} \leq 0$ and $x^*_{i\ell y'} \leq 0$:]  In this case 
+			you we have to adjust both of them by adding a gene copy back in there for them, and we are dividing by $n_i - 2$ because we
+			have to put two extra gene copies back onto the pile.
+			\[
+				p^*_{i\ell y}  = p^*_{i\ell y'} \frac{1}{n_i - 2} =  R_i^{(2)}
+			\]
+
+		\end{description}
+
 	\end{description}
 
 \end{description}
 
+\subsection{Doing this operationally}
+
+So, now that I see what needs to be done, I want to figure out how to do it with the least code.  
+Obviously we only have to do something if both gene copies are not missing.  Then, I think
+perhaps we should first compute $x^*_{i\ell y}$ and $x^*_{i\ell y'}$.  If the individual is not from the 
+current population then $x^*$ is just $x$.  Then we can choose 
+whatever action we take as a function of just a few Boolean
+variables:
+\begin{enumerate}
+\item Is individual allocated to the population in question?
+\item Is $x^*_{i\ell y} = 0$
+\item Is $x^*_{i\ell y'} = 0$
+\item Is the individual homozygous?
+\end{enumerate}
+
+And working through this stuff should then work something like this:
+\begin{description}
+\item [If (1) is true:] compute $x^*$'s by simple subtraction from $x$
+\item [Otherwise:] $x^*$ just comes straight from $x$.
+\item [Assess (2), (3), and (4):] Easy.
+\item [Once that is done, it is a simple decision tree. ]  And we might just as well do everything with the $x^*$'s, rather than worrying
+about the $p$'s.
+\end{description}
 
 \bibliography{anderson}
 \bibliographystyle{mychicago}

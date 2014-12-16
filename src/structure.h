@@ -23,6 +23,7 @@
 #define DiploidSiteBySiteSumPos(ind,pop2,loc,pop) ((ind)*(MAXPOPS)*(NUMLOCI)*(MAXPOPS)+(pop2)*(NUMLOCI)*(MAXPOPS)+(loc)*(MAXPOPS)+(pop))
 	
 #define PPos(loc,pop,allele) ((loc)*(MAXPOPS)*(MAXALLELES)+(pop)*(MAXALLELES)+(allele))
+#define NRPos(loc,pop,got_added) ((loc)*(MAXPOPS)*(3)+(pop)*(3)+(got_added))
 #define QPos(ind,pop) ((ind)*(MAXPOPS)+(pop))	/* Q */
 #define RTransitProbPos(loc,line,pop) ((loc)*MAXPOPS*LINES+(line)*MAXPOPS+(pop))
 #define DiploidRTransitProbPos(loc,pop,pop2) ((loc)*MAXPOPS*MAXPOPS+(pop)*MAXPOPS+(pop2))
